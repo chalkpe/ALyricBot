@@ -26,6 +26,8 @@ import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -53,17 +55,19 @@ public class ALyricBot implements IReceiverService {
     public void received(Message message){
         if(message.getMessageType() != MessageType.AUDIO_MESSAGE){
             if(message.getMessageType() == MessageType.TEXT_MESSAGE){
-                String[] commands = message.getMessage().toString().split(" ");
-                if(commands[0].contains("@")){
-                    commands[0] = commands[0].split("@")[0];
+                ArrayList<String> commands = new ArrayList<>(Arrays.asList(message.getMessage().toString().split(" ")));
+                if(commands.get(0).contains("@")){
+                    commands.set(0, commands.get(0).split("@")[0]);
                 }
 
-                if(commands[0].equalsIgnoreCase("/lyric") && commands.length > 1){
+                if(commands.get(0).equalsIgnoreCase("/lyric") && commands.size() > 1){
                     new Thread(() -> {
                         File file = null;
                         try{
-                            commands[0] = "";
+                            commands.remove(0);
                             String url = String.join(" ", commands);
+
+                            System.out.println(url);
 
                             if(!url.startsWith("http://") && !url.startsWith("https://")){
                                 throw new IllegalArgumentException("You must use http or https protocol");
@@ -71,7 +75,7 @@ public class ALyricBot implements IReceiverService {
 
                             file = File.createTempFile("telegram-", "");
                             this.start(message, new URL(url), file);
-                        }catch(Exception e){
+                        }catch(Throwable e){
                             this.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage());
                         }finally{
                             if(file != null && file.exists()){
@@ -97,7 +101,7 @@ public class ALyricBot implements IReceiverService {
 
                 file = File.createTempFile("telegram-", "-" + fileId);
 
-                this.reply(message, "⬛️⬛️⬛️⬜️⬜️⬜️⬜️⬜️⬜️ Getting file_id...");
+                this.reply(message, "⚫️⚪️⚪️  Getting file_id...");
 
                 HttpPost post = new HttpPost(BotSettings.getApiUrlWithToken() + "getFile");
                 post.setEntity(MultipartEntityBuilder.create().addTextBody("file_id", fileId, this.CONTENT_TYPE).build());
@@ -121,15 +125,19 @@ public class ALyricBot implements IReceiverService {
     }
 
     public void start(Message message, URL url, File file) throws Exception {
-        this.reply(message, "⬛️⬛️⬛️⬛️⬛️⬛️⬜️⬜️⬜️ Downloading audio...");
+        this.reply(message, "⚫️⚫️⚪️ Downloading audio...");
 
         Files.copy(url.openStream(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
         System.out.println(file.toString());
 
-        this.reply(message, "⬛️⬛️⬛️⬛️⬛️⬛️⬛️⬛️⬛️ Searching lyrics...");
+        this.reply(message, "⚫️⚫️⚫️ Searching lyrics...");
 
         Map<Integer, String> lyricsMap = LyricLib.parseLyric(LyricLib.getLyric(LyricLib.getHash(file)));
         System.out.println(lyricsMap);
+
+        if(lyricsMap.isEmpty()){
+            this.reply(message, "❌ There are no lyrics for this music :(");
+        }
 
         String lyrics = String.join("\n\n", lyricsMap.values());
 
