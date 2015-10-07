@@ -65,7 +65,7 @@ public class ALyricBot implements IReceiverService {
                             commands[0] = "";
                             String url = String.join(" ", commands);
 
-                            if(!url.startsWith("http://") || !url.startsWith("https://")){
+                            if(!url.startsWith("http://") && !url.startsWith("https://")){
                                 throw new IllegalArgumentException("You must use http or https protocol");
                             }
 
