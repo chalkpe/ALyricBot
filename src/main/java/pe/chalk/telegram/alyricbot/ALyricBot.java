@@ -67,13 +67,13 @@ public class ALyricBot implements IReceiverService {
                             commands.remove(0);
                             String url = String.join(" ", commands);
 
-                            System.out.println(url);
+                            //System.out.println(url);
 
                             if(!url.startsWith("http://") && !url.startsWith("https://")){
                                 throw new IllegalArgumentException("You must use http or https protocol");
                             }
 
-                            file = File.createTempFile("telegram-", "");
+                            file = File.createTempFile("telegram-", "tmp");
                             this.start(message, new URL(url), file);
                         }catch(Throwable e){
                             this.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -108,13 +108,13 @@ public class ALyricBot implements IReceiverService {
 
                 try(CloseableHttpResponse response = this.client.execute(post)){
                     JSONObject fileJson = new JSONObject(new JSONTokener(response.getEntity().getContent()));
-                    System.out.println(fileJson.toString());
+                    //System.out.println(fileJson.toString());
 
                     String filePath = String.format("https://api.telegram.org/file/bot%s/%s", this.TOKEN, fileJson.getJSONObject("result").getString("file_path"));
                     this.start(message, new URL(filePath), file);
                 }
-            }catch(Exception e){
-                e.printStackTrace();
+            }catch(Throwable e){
+                this.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }finally{
                 if(file != null && file.exists()){
                     //noinspection ResultOfMethodCallIgnored
@@ -124,24 +124,18 @@ public class ALyricBot implements IReceiverService {
         }).start();
     }
 
-    public void start(Message message, URL url, File file) throws Exception {
+    public void start(Message message, URL url, File file) throws Throwable {
         this.reply(message, "⚫️⚫️⚪️ Downloading audio...");
 
         Files.copy(url.openStream(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        System.out.println(file.toString());
+        //System.out.println(file.toString());
 
         this.reply(message, "⚫️⚫️⚫️ Searching lyrics...");
 
         Map<Integer, String> lyricsMap = LyricLib.parseLyric(LyricLib.getLyric(LyricLib.getHash(file)));
-        System.out.println(lyricsMap);
+        //System.out.println(lyricsMap);
 
-        if(lyricsMap.isEmpty()){
-            this.reply(message, "❌ There are no lyrics for this music :(");
-        }
-
-        String lyrics = String.join("\n\n", lyricsMap.values());
-
-        this.reply(message, lyrics);
+        this.reply(message, lyricsMap.isEmpty() ? "❌ There are no lyrics for this music :(" : String.join("\n\n", lyricsMap.values()));
     }
 
     public void reply(Message message, String content){
@@ -154,7 +148,7 @@ public class ALyricBot implements IReceiverService {
             request.getContent().addTextBody("reply_to_message_id", Integer.toString(messageId), this.CONTENT_TYPE);
 
             Sender.bot.post(request);
-        }catch(NoSuchFieldException | IllegalAccessException e){
+        }catch(Throwable e){
             e.printStackTrace();
         }
     }
