@@ -1,5 +1,6 @@
 package pe.chalk.telegram.alyricbot;
 
+import de.vivistra.telegrambot.client.BotRequest;
 import de.vivistra.telegrambot.model.Audio;
 import de.vivistra.telegrambot.model.message.AudioMessage;
 import de.vivistra.telegrambot.model.message.Message;
@@ -25,13 +26,16 @@ import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.Map;
 
 /**
  * @author ChalkPE <chalkpe@gmail.com>
  * @since 2015-10-05
  */
 public class ALyricBot implements IReceiverService {
-    private final String token;
+    private final String TOKEN;
+    private final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), MIME.UTF8_CHARSET);
+
     private CloseableHttpClient client;
 
     public static void main(String[] args){
@@ -39,15 +43,46 @@ public class ALyricBot implements IReceiverService {
     }
 
     public ALyricBot(String token){
-        this.token = token;
+        this.TOKEN = token;
         this.client = HttpClients.createDefault();
 
-        BotSettings.setApiToken(this.token);
+        BotSettings.setApiToken(this.TOKEN);
         Receiver.subscribe(this);
     }
 
     public void received(Message message){
         if(message.getMessageType() != MessageType.AUDIO_MESSAGE){
+            if(message.getMessageType() == MessageType.TEXT_MESSAGE){
+                String[] commands = message.getMessage().toString().split(" ");
+                if(commands[0].contains("@")){
+                    commands[0] = commands[0].split("@")[0];
+                }
+
+                if(commands[0].equalsIgnoreCase("/lyric") && commands.length > 1){
+                    new Thread(() -> {
+                        File file = null;
+                        try{
+                            commands[0] = "";
+                            String url = String.join(" ", commands);
+
+                            if(!url.startsWith("http://") || !url.startsWith("https://")){
+                                throw new IllegalArgumentException("You must use http or https protocol");
+                            }
+
+                            file = File.createTempFile("telegram-", "");
+                            this.start(message, new URL(url), file);
+                        }catch(Exception e){
+                            this.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                        }finally{
+                            if(file != null && file.exists()){
+                                //noinspection ResultOfMethodCallIgnored
+                                file.delete();
+                            }
+                        }
+                    }).start();
+                }
+            }
+
             return;
         }
 
@@ -62,21 +97,18 @@ public class ALyricBot implements IReceiverService {
 
                 file = File.createTempFile("telegram-", "-" + fileId);
 
+                this.reply(message, "⬛️⬛️⬛️⬜️⬜️⬜️⬜️⬜️⬜️ Getting file_id...");
+
                 HttpPost post = new HttpPost(BotSettings.getApiUrlWithToken() + "getFile");
-                post.setEntity(MultipartEntityBuilder.create().addTextBody("file_id", fileId, ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), MIME.UTF8_CHARSET)).build());
+                post.setEntity(MultipartEntityBuilder.create().addTextBody("file_id", fileId, this.CONTENT_TYPE).build());
 
                 try(CloseableHttpResponse response = this.client.execute(post)){
                     JSONObject fileJson = new JSONObject(new JSONTokener(response.getEntity().getContent()));
                     System.out.println(fileJson.toString());
 
-                    String filePath = String.format("https://api.telegram.org/file/bot%s/%s", this.token, fileJson.getJSONObject("result").getString("file_path"));
-
-                    Files.copy(new URL(filePath).openStream(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    System.out.println(file.toString());
+                    String filePath = String.format("https://api.telegram.org/file/bot%s/%s", this.TOKEN, fileJson.getJSONObject("result").getString("file_path"));
+                    this.start(message, new URL(filePath), file);
                 }
-
-                String lyrics = String.join("\n", LyricLib.parseLyric(LyricLib.getLyric(LyricLib.getHash(file))).values());
-                Sender.send(new TextMessage(message.isFromGroupChat() ? message.getGroupChat().getId() : message.getSender().getId(), lyrics));
             }catch(Exception e){
                 e.printStackTrace();
             }finally{
@@ -86,5 +118,36 @@ public class ALyricBot implements IReceiverService {
                 }
             }
         }).start();
+    }
+
+    public void start(Message message, URL url, File file) throws Exception {
+        this.reply(message, "⬛️⬛️⬛️⬛️⬛️⬛️⬜️⬜️⬜️ Downloading audio...");
+
+        Files.copy(url.openStream(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        System.out.println(file.toString());
+
+        this.reply(message, "⬛️⬛️⬛️⬛️⬛️⬛️⬛️⬛️⬛️ Searching lyrics...");
+
+        Map<Integer, String> lyricsMap = LyricLib.parseLyric(LyricLib.getLyric(LyricLib.getHash(file)));
+        System.out.println(lyricsMap);
+
+        String lyrics = String.join("\n\n", lyricsMap.values());
+
+        this.reply(message, lyrics);
+    }
+
+    public void reply(Message message, String content){
+        try{
+            Field messageIdField = Message.class.getDeclaredField("messageID");
+            messageIdField.setAccessible(true);
+            Integer messageId = (Integer) messageIdField.get(message);
+
+            BotRequest request = new BotRequest(new TextMessage(message.isFromGroupChat() ? message.getGroupChat().getId() : message.getSender().getId(), content));
+            request.getContent().addTextBody("reply_to_message_id", Integer.toString(messageId), this.CONTENT_TYPE);
+
+            Sender.bot.post(request);
+        }catch(NoSuchFieldException | IllegalAccessException e){
+            e.printStackTrace();
+        }
     }
 }
