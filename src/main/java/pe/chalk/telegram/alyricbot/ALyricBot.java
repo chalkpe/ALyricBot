@@ -10,18 +10,14 @@ import de.vivistra.telegrambot.receiver.IReceiverService;
 import de.vivistra.telegrambot.receiver.Receiver;
 import de.vivistra.telegrambot.sender.Sender;
 import de.vivistra.telegrambot.settings.BotSettings;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MIME;
-import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.khinenw.poweralyric.LyricLib;
 
 import java.io.File;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.file.Files;
@@ -38,15 +34,12 @@ public class ALyricBot implements IReceiverService {
     private final String TOKEN;
     private final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), MIME.UTF8_CHARSET);
 
-    private CloseableHttpClient client;
-
     public static void main(String[] args){
         new ALyricBot(args[0]);
     }
 
     public ALyricBot(String token){
         this.TOKEN = token;
-        this.client = HttpClients.createDefault();
 
         BotSettings.setApiToken(this.TOKEN);
         Receiver.subscribe(this);
@@ -103,11 +96,8 @@ public class ALyricBot implements IReceiverService {
 
                 this.reply(message, "⚫️⚪️⚪️  Getting file_id...");
 
-                HttpPost post = new HttpPost(BotSettings.getApiUrlWithToken() + "getFile");
-                post.setEntity(MultipartEntityBuilder.create().addTextBody("file_id", fileId, this.CONTENT_TYPE).build());
-
-                try(CloseableHttpResponse response = this.client.execute(post)){
-                    JSONObject fileJson = new JSONObject(new JSONTokener(response.getEntity().getContent()));
+                try(InputStream response = new URL(BotSettings.getApiUrlWithToken() + "getFile?file_id=" + fileId).openStream()){
+                    JSONObject fileJson = new JSONObject(new JSONTokener(response));
                     //System.out.println(fileJson.toString());
 
                     String filePath = String.format("https://api.telegram.org/file/bot%s/%s", this.TOKEN, fileJson.getJSONObject("result").getString("file_path"));
