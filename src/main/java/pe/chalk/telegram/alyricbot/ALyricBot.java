@@ -56,7 +56,8 @@ public class ALyricBot implements IReceiverService {
             }
 
             if(commands.length <= 1){
-                ALyricBot.reply(message, "");
+                ALyricBot.reply(message, "Developed by @ChalkPE\n\nUsage: /lyric <URL OF MUSIC FILE>");
+                return;
             }
 
             if(!commands[1].startsWith("http://") && !commands[1].startsWith("https://")){
