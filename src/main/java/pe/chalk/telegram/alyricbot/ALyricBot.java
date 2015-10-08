@@ -16,15 +16,14 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.khinenw.poweralyric.LyricLib;
 
-import java.io.File;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * @author ChalkPE <chalkpe@gmail.com>
@@ -46,86 +45,64 @@ public class ALyricBot implements IReceiverService {
     }
 
     public void received(Message message){
-        if(message.getMessageType() != MessageType.AUDIO_MESSAGE){
-            if(message.getMessageType() == MessageType.TEXT_MESSAGE){
-                ArrayList<String> commands = new ArrayList<>(Arrays.asList(message.getMessage().toString().split(" ")));
-                if(commands.get(0).contains("@")){
-                    commands.set(0, commands.get(0).split("@")[0]);
-                }
-
-                if(commands.get(0).equalsIgnoreCase("/lyric") && commands.size() > 1){
-                    new Thread(() -> {
-                        File file = null;
-                        try{
-                            commands.remove(0);
-                            String url = String.join(" ", commands);
-
-                            //System.out.println(url);
-
-                            if(!url.startsWith("http://") && !url.startsWith("https://")){
-                                throw new IllegalArgumentException("You must use http or https protocol");
-                            }
-
-                            file = File.createTempFile("telegram-", "tmp");
-                            this.start(message, new URL(url), file);
-                        }catch(Throwable e){
-                            this.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage());
-                        }finally{
-                            if(file != null && file.exists()){
-                                //noinspection ResultOfMethodCallIgnored
-                                file.delete();
-                            }
-                        }
-                    }).start();
-                }
+        if(message.getMessageType() == MessageType.TEXT_MESSAGE){
+            String[] commands = message.getMessage().toString().split(" ");
+            if(commands[0].contains("@")){
+                commands[0] = commands[0].split("@")[0];
             }
 
-            return;
+            if(!commands[0].equalsIgnoreCase("/lyric") || commands.length <= 1){
+                return;
+            }
+
+            if(!commands[1].startsWith("http://") && !commands[1].startsWith("https://")){
+                commands[1] = "http://" + commands[1];
+            }
+
+            this.search(message, () -> commands[1]);
+        }else if(message.getMessageType() == MessageType.AUDIO_MESSAGE){
+            this.reply(message, "⚫️⚪️⚪️  Getting file_id...");
+            this.search(message, () -> {
+                try{
+                    return this.getFileURL(((AudioMessage) message).getMessage());
+                }catch(Throwable e){
+                    this.reply(message, e);
+                }
+                return null;
+            });
         }
-
-        new Thread(() -> {
-            File file = null;
-            try{
-                Audio audio = ((AudioMessage) message).getMessage();
-
-                Field fileIdField = Audio.class.getDeclaredField("fileId");
-                fileIdField.setAccessible(true);
-                String fileId = fileIdField.get(audio).toString();
-
-                file = File.createTempFile("telegram-", "-" + fileId);
-
-                this.reply(message, "⚫️⚪️⚪️  Getting file_id...");
-
-                try(InputStream response = new URL(BotSettings.getApiUrlWithToken() + "getFile?file_id=" + fileId).openStream()){
-                    JSONObject fileJson = new JSONObject(new JSONTokener(response));
-                    //System.out.println(fileJson.toString());
-
-                    String filePath = String.format("https://api.telegram.org/file/bot%s/%s", this.TOKEN, fileJson.getJSONObject("result").getString("file_path"));
-                    this.start(message, new URL(filePath), file);
-                }
-            }catch(Throwable e){
-                this.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage());
-            }finally{
-                if(file != null && file.exists()){
-                    //noinspection ResultOfMethodCallIgnored
-                    file.delete();
-                }
-            }
-        }).start();
     }
 
-    public void start(Message message, URL url, File file) throws Throwable {
-        this.reply(message, "⚫️⚫️⚪️ Downloading audio...");
+    public String getFileURL(Audio audio) throws Throwable {
+        Field fileIdField = Audio.class.getDeclaredField("fileId");
+        fileIdField.setAccessible(true);
+        String fileId = fileIdField.get(audio).toString();
 
-        Files.copy(url.openStream(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        //System.out.println(file.toString());
+        try(InputStream response = new URL(BotSettings.getApiUrlWithToken() + "getFile?file_id=" + fileId).openStream()){
+            return String.format("https://api.telegram.org/file/bot%s/%s", this.TOKEN, new JSONObject(new JSONTokener(response)).getJSONObject("result").getString("file_path"));
+        }
+    }
 
-        this.reply(message, "⚫️⚫️⚫️ Searching lyrics...");
+    public void search(final Message message, final Supplier<String> urlFactory){
+        new Thread(() -> {
+            String url = urlFactory.get();
+            try(InputStream stream = new URL(url).openStream()){
+                /* #1 - DOWNLOAD AUDIO FILE FROM STREAM */
+                this.reply(message, "⚫️⚫️⚪️ Downloading audio...");
+                Path path = Files.createTempFile("TelegramALyricBotAudioCache", ".tmp");
+                Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING);
 
-        Map<Integer, String> lyricsMap = LyricLib.parseLyric(LyricLib.getLyric(LyricLib.getHash(file)));
-        //System.out.println(lyricsMap);
+                /* #2 - SEARCH FROM ALSONG SERVER */
+                this.reply(message, "⚫️⚫️⚫️ Searching lyrics...");
+                Map<Integer, String> lyricsMap = LyricLib.parseLyric(LyricLib.getLyric(LyricLib.getHash(path.toFile())));
 
-        this.reply(message, lyricsMap.isEmpty() ? "❌ There are no lyrics for this music :(" : String.join("\n\n", lyricsMap.values()));
+                /* #3 - REPLY RESULT AND DELETE FILE */
+                this.reply(message, lyricsMap.isEmpty() ? "❌ There are no lyrics for this music :(" : String.join("\n\n", lyricsMap.values()));
+                Files.deleteIfExists(path);
+            }catch(Throwable e){
+                this.reply(message, e);
+            }
+        }).start();
     }
 
     public void reply(Message message, String content){
@@ -141,5 +118,10 @@ public class ALyricBot implements IReceiverService {
         }catch(Throwable e){
             e.printStackTrace();
         }
+    }
+
+    public void reply(Message message, Throwable e){
+        this.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage().replaceAll("https?://\\S*", "[DATA EXPUNGED]"));
+        e.printStackTrace();
     }
 }
