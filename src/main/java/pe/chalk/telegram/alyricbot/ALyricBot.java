@@ -28,15 +28,15 @@ public class ALyricBot implements IReceiverService {
     private LyricManager manager;
 
     @FunctionalInterface
-    public interface Factory<T> {
+    public interface Factory <T> {
         T get() throws Throwable;
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException{
         new ALyricBot(args[0]);
     }
 
-    public ALyricBot(String token) throws IOException {
+    public ALyricBot(String token) throws IOException{
         ALyricBot.TOKEN = token;
         this.manager = new LyricManager(Paths.get("cache"));
 
@@ -84,9 +84,14 @@ public class ALyricBot implements IReceiverService {
                 /* #3 - REPLY RESULT AND DELETE FILE */
                 ALyricBot.reply(message, lyrics == null ? "❌ There are no lyrics for this music :(" : lyrics);
             }catch(Throwable e){
-                this.reply(message, e);
+                ALyricBot.reply(message, e);
             }
         }).start();
+    }
+
+    public static void reply(Message message, Throwable e){
+        ALyricBot.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage().replaceAll("https?://\\S*", "[DATA EXPUNGED]"));
+        e.printStackTrace();
     }
 
     public static void reply(Message message, String content){
@@ -95,17 +100,31 @@ public class ALyricBot implements IReceiverService {
             messageIdField.setAccessible(true);
             Integer messageId = (Integer) messageIdField.get(message);
 
-            BotRequest request = new BotRequest(new TextMessage(message.isFromGroupChat() ? message.getGroupChat().getId() : message.getSender().getId(), content));
-            request.getContent().addTextBody("reply_to_message_id", Integer.toString(messageId), ALyricBot.CONTENT_TYPE);
-
-            Sender.bot.post(request);
+            ALyricBot.reply(message.isFromGroupChat() ? message.getGroupChat().getId() : message.getSender().getId(), messageId, content);
         }catch(Throwable e){
             e.printStackTrace();
         }
     }
 
-    public void reply(Message message, Throwable e){
-        ALyricBot.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage().replaceAll("https?://\\S*", "[DATA EXPUNGED]"));
-        e.printStackTrace();
+    public static void reply(int recipient, int messageId, String content){
+        if(content == null || content.equals("")){
+            return;
+        }
+
+        try{
+            String nextContent = null;
+            if(content.length() >= 4096){
+                nextContent = content.substring(4096);
+                content = content.substring(0, 4096);
+            }
+
+            BotRequest request = new BotRequest(new TextMessage(recipient, content));
+            request.getContent().addTextBody("reply_to_message_id", Integer.toString(messageId), ALyricBot.CONTENT_TYPE);
+
+            Sender.bot.post(request);
+            ALyricBot.reply(recipient, messageId, nextContent);
+        }catch(Throwable e){
+            e.printStackTrace();
+        }
     }
 }
