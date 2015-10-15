@@ -67,7 +67,7 @@ public class LyricManager {
         return LyricLib.getHash(path.toFile());
     }
 
-    public String getHash(AudioMessage message) throws Throwable {
+    public String getHash(AudioMessage message) throws IOException, TagException, NoSuchAlgorithmException, NoSuchFieldException, IllegalAccessException {
         Field fileIdField = Audio.class.getDeclaredField("fileId");
         fileIdField.setAccessible(true);
         String fileId = fileIdField.get(message.getMessage()).toString();
