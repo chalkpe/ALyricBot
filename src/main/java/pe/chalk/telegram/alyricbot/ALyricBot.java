@@ -75,6 +75,7 @@ public class ALyricBot implements IReceiverService {
                 /* #1 - DOWNLOAD AUDIO FILE FROM STREAM */
                 ALyricBot.reply(message, "⚫️⚪️⚪️  Getting an information...");
                 String hash = hashFactory.get();
+                if(hash.equals("*INVALID*")) throw new IllegalArgumentException("Invalid music file!");
 
                 /* #2 - SEARCH FROM ALSONG SERVER */
                 String lyrics = this.manager.getLyrics(hash, message);
@@ -88,7 +89,10 @@ public class ALyricBot implements IReceiverService {
     }
 
     public static void reply(Message message, Throwable e){
-        ALyricBot.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage().replaceAll("https?://\\S*", "[DATA EXPUNGED]"));
+        String errorMessage = e.getMessage();
+        if(errorMessage == null) errorMessage = "";
+
+        ALyricBot.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + errorMessage.replaceAll("https?://\\S*", "[DATA EXPUNGED]"));
         e.printStackTrace();
     }
 

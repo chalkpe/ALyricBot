@@ -13,6 +13,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.IntStream;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -30,17 +31,20 @@ public class LyricLib {
 	public static String getHash(File f) throws IOException, TagException, NoSuchAlgorithmException{
 		MP3File mp3 = new MP3File();
 		long start = mp3.getMp3StartByte(f);
+
 		FileInputStream fis = new FileInputStream(f);
 		byte[] data = new byte[163840];
 		fis.getChannel().position(start);
 		fis.read(data, 0, 163840);
 		fis.close();
+
+		if(IntStream.range(0, data.length).parallel().allMatch(i -> data[i] == 0)) return "*INVALID*";
 		
 		MessageDigest md5 = MessageDigest.getInstance("MD5");
 		md5.update(data);
 		byte[] md5enc = md5.digest();
-		
-		StringBuffer sb = new StringBuffer(); 
+
+		StringBuilder sb = new StringBuilder();
 		for(int i = 0 ; i < md5enc.length ; i++){
 			sb.append(Integer.toString((md5enc[i]&0xff) + 0x100, 16).substring(1));
 		}
