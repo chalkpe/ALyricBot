@@ -45,29 +45,27 @@ public class ALyricBot implements IReceiverService {
     }
 
     public void received(Message message){
-        if(message.getMessageType() == MessageType.TEXT_MESSAGE){
+        if(message.getMessageType() == MessageType.AUDIO_MESSAGE){
+            this.search(message, () -> this.manager.getHash((AudioMessage) message));
+        }else if(message.getMessageType() == MessageType.TEXT_MESSAGE){
             String[] commands = message.getMessage().toString().split(" ");
+            if(!commands[0].startsWith("/")) return;
+
             if(commands[0].contains("@")){
-                commands[0] = commands[0].split("@")[0];
+                String[] mainCommand = commands[0].split("@");
+                if(mainCommand.length >= 2 && !mainCommand[1].equalsIgnoreCase("ALyricBot")) return;
+
+                commands[0] = mainCommand[0];
             }
 
-            if(!commands[0].equalsIgnoreCase("/lyric")){
-                return;
-            }
-
+            if(!commands[0].equalsIgnoreCase("/lyric")) return;
             if(commands.length <= 1){
                 ALyricBot.reply(message, "\uD83C\uDF10 https://github.com/ChalkPE/ALyricBot\n\nUsage: /lyric <URL OF MUSIC FILE>");
                 return;
             }
 
-            if(!commands[1].startsWith("http://") && !commands[1].startsWith("https://")){
-                commands[1] = "http://" + commands[1];
-            }
-            final String url = String.join(" ", Arrays.copyOfRange(commands, 1, commands.length));
-
-            this.search(message, () -> this.manager.getHash(message, url));
-        }else if(message.getMessageType() == MessageType.AUDIO_MESSAGE){
-            this.search(message, () -> this.manager.getHash((AudioMessage) message));
+            if(!commands[1].startsWith("http://") && !commands[1].startsWith("https://"))commands[1] = "http://" + commands[1];
+            this.search(message, () -> this.manager.getHash(message, String.join(" ", Arrays.copyOfRange(commands, 1, commands.length))));
         }
     }
 
@@ -120,6 +118,7 @@ public class ALyricBot implements IReceiverService {
 
             BotRequest request = new BotRequest(new TextMessage(recipient, content));
             request.getContent().addTextBody("reply_to_message_id", Integer.toString(messageId), ALyricBot.CONTENT_TYPE);
+            request.getContent().addTextBody("disable_web_page_preview", Boolean.toString(true), ALyricBot.CONTENT_TYPE);
 
             Sender.bot.post(request);
             ALyricBot.reply(recipient, messageId, nextContent);
