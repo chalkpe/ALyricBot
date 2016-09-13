@@ -1,19 +1,15 @@
 package pe.chalk.telegram.alyricbot;
 
-import de.vivistra.telegrambot.model.Audio;
-import de.vivistra.telegrambot.model.message.AudioMessage;
-import de.vivistra.telegrambot.model.message.Message;
-import de.vivistra.telegrambot.settings.BotSettings;
 import org.farng.mp3.TagException;
-import org.json.JSONObject;
-import org.json.JSONTokener;
 import org.khinenw.poweralyric.LyricLib;
+import org.telegram.telegrambots.TelegramApiException;
+import org.telegram.telegrambots.api.methods.GetFile;
+import org.telegram.telegrambots.api.objects.Message;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -67,32 +63,30 @@ public class LyricManager {
         return LyricLib.getHash(path.toFile());
     }
 
-    public String getHash(AudioMessage message) throws IOException, TagException, NoSuchAlgorithmException, NoSuchFieldException, IllegalAccessException {
-        Field fileIdField = Audio.class.getDeclaredField("fileId");
-        fileIdField.setAccessible(true);
-        String fileId = fileIdField.get(message.getMessage()).toString();
+    public String getHash(Message message) throws IOException, TagException, NoSuchAlgorithmException, NoSuchFieldException, IllegalAccessException, TelegramApiException {
+        final String fileId = message.getAudio().getFileId();
 
-        Path telegramCachePath = this.getCachePath(this.telegramCacheDirectory, fileId);
+        final Path telegramCachePath = this.getCachePath(this.telegramCacheDirectory, fileId);
         if(this.isValidCache(telegramCachePath)){
             return new String(Files.readAllBytes(telegramCachePath), StandardCharsets.UTF_8);
         }
 
-        try(InputStream response = new URL(BotSettings.getApiUrlWithToken() + "getFile?file_id=" + fileId).openStream()){
-            String url = String.format("https://api.telegram.org/file/bot%s/%s", ALyricBot.TOKEN, new JSONObject(new JSONTokener(response)).getJSONObject("result").getString("file_path"));
+        final GetFile request = new GetFile();
+        request.setFileId(fileId);
 
-            ALyricBot.reply(message, "⚫️⚫️⚪️  Downloading your music...");
+        final String url = String.format("https://api.telegram.org/file/bot%s/%s", ALyricBot.getInstance().getBotToken(), ALyricBot.getInstance().getFile(request).getFilePath());
+        ALyricBot.reply(message, "⚫️⚫️⚪️  Downloading your music...");
 
-            Path tempPath = this.getTempPath();
-            try(InputStream stream = new URL(url).openStream()){
-                Files.copy(stream, tempPath, StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            String hash = this.getHash(tempPath);
-            Files.write(telegramCachePath, hash.getBytes(StandardCharsets.UTF_8));
-
-            Files.deleteIfExists(tempPath);
-            return hash;
+        final Path tempPath = this.getTempPath();
+        try(final InputStream stream = new URL(url).openStream()){
+            Files.copy(stream, tempPath, StandardCopyOption.REPLACE_EXISTING);
         }
+
+        final String hash = this.getHash(tempPath);
+        Files.write(telegramCachePath, hash.getBytes(StandardCharsets.UTF_8));
+
+        Files.deleteIfExists(tempPath);
+        return hash;
     }
 
     public String getHash(Message message, String url) throws IOException, TagException, NoSuchAlgorithmException {

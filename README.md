@@ -7,6 +7,6 @@ A simple Telegram bot that automatically provides ALSong lyrics of the uploaded 
 | `/lyric` | `<URL OF MUSIC FILE>` | Search lyrics by the given URL |
 
 ## Used libraries
-- [TelegramBot JavaAPI](https://github.com/marzn/telegrambot-japi) by @marzn
+- [TelegramBots](https://github.com/rubenlagus/TelegramBots) by @rubenlagus
 - [LyricLib](https://github.com/HelloWorld017/PowerALyric/blob/master/src/org/khinenw/poweralyric/LyricLib.java) by @HelloWorld017
   - [Java MP3 ID3 Tag Library](http://sourceforge.net/projects/javamusictag/) by [efarng](http://sourceforge.net/u/efarng/profile/)

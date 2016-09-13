@@ -1,72 +1,101 @@
 package pe.chalk.telegram.alyricbot;
 
-import de.vivistra.telegrambot.client.BotRequest;
-import de.vivistra.telegrambot.model.message.AudioMessage;
-import de.vivistra.telegrambot.model.message.Message;
-import de.vivistra.telegrambot.model.message.MessageType;
-import de.vivistra.telegrambot.model.message.TextMessage;
-import de.vivistra.telegrambot.receiver.IReceiverService;
-import de.vivistra.telegrambot.receiver.Receiver;
-import de.vivistra.telegrambot.sender.Sender;
-import de.vivistra.telegrambot.settings.BotSettings;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.mime.MIME;
+import org.telegram.telegrambots.TelegramBotsApi;
+import org.telegram.telegrambots.api.methods.send.SendMessage;
+import org.telegram.telegrambots.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.api.objects.Message;
+import org.telegram.telegrambots.api.objects.Update;
+import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.logging.BotLogger;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.logging.Level;
 
 /**
  * @author ChalkPE <chalkpe@gmail.com>
  * @since 2015-10-05
  */
-public class ALyricBot implements IReceiverService {
-    public static String TOKEN = "";
-    public static final ContentType CONTENT_TYPE = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), MIME.UTF8_CHARSET);
+public class ALyricBot extends TelegramLongPollingBot {
+    private static ALyricBot instance;
 
-    private LyricManager manager;
+    private static String TOKEN;
+    private static LyricManager manager;
 
-    @FunctionalInterface
-    public interface Factory <T> {
-        T get() throws Throwable;
-    }
+    private static Map<Message, Message> previous;
 
-    public static void main(String[] args) throws IOException{
-        new ALyricBot(args[0]);
+    public static void main(String[] args) throws Exception {
+        if(args.length < 1){
+            System.err.println("Usage: java -jar ALyricBot.jar <token>");
+            return;
+        }
+
+        TelegramBotsApi api = new TelegramBotsApi();
+        api.registerBot(new ALyricBot(args[0]));
     }
 
     public ALyricBot(String token) throws IOException{
         ALyricBot.TOKEN = token;
-        this.manager = new LyricManager(Paths.get("cache"));
 
-        BotSettings.setApiToken(ALyricBot.TOKEN);
-        Receiver.subscribe(this);
+        ALyricBot.instance = this;
+        ALyricBot.manager = new LyricManager(Paths.get("cache"));
+        ALyricBot.previous = new HashMap<>();
+
+        BotLogger.setLevel(Level.ALL);
     }
 
-    public void received(Message message){
-        if(message.getMessageType() == MessageType.AUDIO_MESSAGE){
-            this.search(message, () -> this.manager.getHash((AudioMessage) message));
-        }else if(message.getMessageType() == MessageType.TEXT_MESSAGE){
-            String[] commands = message.getMessage().toString().split(" ");
-            if(!commands[0].startsWith("/")) return;
+    public static ALyricBot getInstance(){
+        return ALyricBot.instance;
+    }
 
-            if(commands[0].contains("@")){
-                String[] mainCommand = commands[0].split("@");
-                if(mainCommand.length >= 2 && !mainCommand[1].equalsIgnoreCase("ALyricBot")) return;
+    @Override
+    public void onUpdateReceived(Update update) {
+        if(!update.hasMessage()) return;
+        final Message message = update.getMessage();
 
-                commands[0] = mainCommand[0];
+        if(Objects.nonNull(message.getAudio())) this.search(message, () -> ALyricBot.manager.getHash(message));
+        else if(message.hasText()){
+            final List<String> commands = new ArrayList<>(Arrays.asList(message.getText().split(" ")));
+
+            String command = commands.remove(0);
+            if(!command.startsWith("/")) return;
+
+            if(command.contains("@")){
+                final String[] mainCommand = command.split("@");
+                if(mainCommand.length > 1 && !mainCommand[1].equalsIgnoreCase(this.getBotUsername())) return;
+                command = mainCommand[0];
             }
 
-            if(!commands[0].equalsIgnoreCase("/lyric")) return;
-            if(commands.length <= 1){
+            if(!command.equalsIgnoreCase("/lyric")) return;
+            if(commands.size() < 1){
                 ALyricBot.reply(message, "\uD83C\uDF10 https://github.com/ChalkPE/ALyricBot\n\nUsage: /lyric <URL OF MUSIC FILE>");
                 return;
             }
 
-            if(!commands[1].startsWith("http://") && !commands[1].startsWith("https://"))commands[1] = "http://" + commands[1];
-            this.search(message, () -> this.manager.getHash(message, String.join(" ", Arrays.copyOfRange(commands, 1, commands.length))));
+            if(!commands.get(0).startsWith("http://") && !commands.get(0).startsWith("https://")) commands.set(0, "http://" + commands.get(0));
+            this.search(message, () -> ALyricBot.manager.getHash(message, String.join(" ", commands)));
         }
+    }
+
+    @Override
+    public String getBotUsername() {
+        return "ALyricBot";
+    }
+
+    @Override
+    public String getBotToken() {
+        return ALyricBot.TOKEN;
+    }
+
+    @FunctionalInterface
+    public interface Factory <T> {
+        T get() throws Throwable;
     }
 
     public void search(final Message message, final Factory<String> hashFactory){
@@ -78,10 +107,10 @@ public class ALyricBot implements IReceiverService {
                 if(hash.equals("*INVALID*")) throw new IllegalArgumentException("Invalid music file!");
 
                 /* #2 - SEARCH FROM ALSONG SERVER */
-                String lyrics = this.manager.getLyrics(hash, message);
+                String lyrics = ALyricBot.manager.getLyrics(hash, message);
 
                 /* #3 - REPLY RESULT AND DELETE FILE */
-                ALyricBot.reply(message, lyrics == null ? "❌ There are no lyrics for this music :(" : lyrics);
+                ALyricBot.reply(message, Objects.isNull(lyrics) ? "❌ There are no lyrics for this music :(" : lyrics);
             }catch(Throwable e){
                 ALyricBot.reply(message, e);
             }
@@ -90,7 +119,7 @@ public class ALyricBot implements IReceiverService {
 
     public static void reply(Message message, Throwable e){
         String errorMessage = e.getMessage();
-        if(errorMessage == null) errorMessage = "";
+        if(Objects.isNull(errorMessage)) errorMessage = "";
 
         ALyricBot.reply(message, "⁉️ ERROR: " + e.getClass().getSimpleName() + ": " + errorMessage.replaceAll("https?://\\S*", "[DATA EXPUNGED]"));
         e.printStackTrace();
@@ -98,20 +127,18 @@ public class ALyricBot implements IReceiverService {
 
     public static void reply(Message message, String content){
         try{
-            Field messageIdField = Message.class.getDeclaredField("messageID");
-            messageIdField.setAccessible(true);
-            Integer messageId = (Integer) messageIdField.get(message);
-
-            ALyricBot.reply(message.isFromGroupChat() ? message.getGroupChat().getId() : message.getSender().getId(), messageId, content);
+            ALyricBot.reply(message, message.getChatId(), content);
         }catch(Throwable e){
             e.printStackTrace();
         }
     }
 
-    public static void reply(int recipient, int messageId, String content){
-        if(content == null || content.equals("")){
-            return;
-        }
+    public static void reply(Message message, long recipient, String content){
+        ALyricBot.reply(message, recipient, content, false);
+    }
+
+    public static void reply(Message message, long recipient, String content, boolean overflow){
+        if(Objects.isNull(content) || content.isEmpty()) return;
 
         try{
             String nextContent = null;
@@ -120,12 +147,27 @@ public class ALyricBot implements IReceiverService {
                 content = content.substring(0, 4096);
             }
 
-            BotRequest request = new BotRequest(new TextMessage(recipient, content));
-            request.getContent().addTextBody("reply_to_message_id", Integer.toString(messageId), ALyricBot.CONTENT_TYPE);
-            request.getContent().addTextBody("disable_web_page_preview", Boolean.toString(true), ALyricBot.CONTENT_TYPE);
+            if(!overflow && ALyricBot.previous.containsKey(message)){
+                EditMessageText request = new EditMessageText();
 
-            Sender.bot.post(request);
-            ALyricBot.reply(recipient, messageId, nextContent);
+                request.setChatId(String.valueOf(recipient));
+                request.setMessageId(ALyricBot.previous.get(message).getMessageId());
+                request.setText(content);
+                request.disableWebPagePreview();
+
+                ALyricBot.getInstance().editMessageText(request);
+            } else {
+                SendMessage request = new SendMessage();
+                request.setChatId(String.valueOf(recipient));
+                request.setText(content);
+
+                request.setReplyToMessageId(message.getMessageId());
+                request.disableWebPagePreview();
+
+                ALyricBot.previous.put(message, ALyricBot.getInstance().sendMessage(request));
+            }
+
+            ALyricBot.reply(message, recipient, nextContent, true);
         }catch(Throwable e){
             e.printStackTrace();
         }
