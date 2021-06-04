@@ -1,6 +1,12 @@
 package pe.chalk.telegram.alyricbot;
 
 import be.zvz.alsong.Alsong;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.module.afterburner.AfterburnerModule;
+import com.fasterxml.jackson.module.kotlin.KotlinModule;
+import com.github.kittinunf.fuel.core.FuelManager;
 import org.farng.mp3.MP3File;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.objects.Message;
@@ -33,6 +39,13 @@ public class LyricManager {
     private final Path telegramCacheDirectory;
     private final Path urlCacheDirectory;
     private final Path lyricCacheDirectory;
+
+    private final ObjectMapper mapper = new JsonMapper()
+            .registerModule(new AfterburnerModule())
+            .registerModule(new KotlinModule())
+            .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+    private final FuelManager fuelManager = new FuelManager();
+    private final Alsong alsong = new Alsong(mapper, fuelManager);
 
     public LyricManager(Path cacheDirectory) throws IOException {
         this.cacheDirectory = cacheDirectory;
@@ -142,7 +155,6 @@ public class LyricManager {
 
         ALyricBot.reply(message, "⚫️⚫️⚫️  Searching lyrics...");
 
-        Alsong alsong = new Alsong();
         Map<Long, List<String>> lyricsMap = alsong.getLyricByHash(hash).getLyrics();
         if (lyricsMap.isEmpty()) {
             return null;
