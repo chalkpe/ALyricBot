@@ -1,3 +1,4 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import java.util.Properties
 
 plugins {
@@ -55,8 +56,18 @@ tasks.withType<Jar> {
             mapOf(
                 "Main-Class" to "pe.chalk.telegram.alyricbot.ALyricBot",
                 "Implementation-Title" to description,
-                "Implementation-Version" to version
+                "Implementation-Version" to archiveVersion
             )
         )
+    }
+}
+
+tasks {
+    named<ShadowJar>("shadowJar") {
+        archiveBaseName.set("app")
+        mergeServiceFiles()
+        manifest {
+            attributes(mapOf("Main-Class" to "pe.chalk.telegram.alyricbot.ALyricBot"))
+        }
     }
 }
