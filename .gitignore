@@ -17,6 +17,7 @@ hs_err_pid*
 ### JetBrains template
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio
 
+gpr.properties
 *.iml
 
 ## Directory-based project format:
@@ -36,8 +37,10 @@ hs_err_pid*
 # .idea/uiDesigner.xml
 
 # Gradle:
-# .idea/gradle.xml
-# .idea/libraries
+.idea/gradle.xml
+.idea/libraries
+
+.gradle
 
 # Mongo Explorer plugin:
 # .idea/mongoSettings.xml
