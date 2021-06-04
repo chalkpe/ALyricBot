@@ -1,5 +1,7 @@
 package pe.chalk.telegram.alyricbot;
 
+import be.zvz.alsong.exception.InvalidDataReceivedException;
+import com.github.kittinunf.fuel.core.HttpException;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
@@ -19,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * @author ChalkPE <chalkpe@gmail.com> & JellyBrick
@@ -31,6 +35,8 @@ public class ALyricBot extends TelegramLongPollingBot {
     private static LyricManager manager;
 
     private static Map<Message, Message> previous;
+    
+    private static Executor cachedThreadPool = Executors.newCachedThreadPool();
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
@@ -124,7 +130,7 @@ public class ALyricBot extends TelegramLongPollingBot {
     }
 
     public void search(final Message message, final Factory<String> hashFactory) {
-        new Thread(() -> {
+        cachedThreadPool.execute(() -> {
             try {
                 /* #1 - DOWNLOAD AUDIO FILE FROM STREAM */
                 ALyricBot.reply(message, "⚫️⚪️⚪️  Getting an information...");
@@ -136,11 +142,18 @@ public class ALyricBot extends TelegramLongPollingBot {
                 String lyrics = ALyricBot.manager.getLyrics(hash, message);
 
                 /* #3 - REPLY RESULT AND DELETE FILE */
-                ALyricBot.reply(message, Objects.isNull(lyrics) ? "❌ There are no lyrics for this music :(" : lyrics);
+                ALyricBot.reply(message, lyrics);
             } catch (Throwable e) {
+                if (e instanceof InvalidDataReceivedException) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof HttpException && cause.getMessage().contains("404")) {
+                        ALyricBot.reply(message, "❌ There are no lyrics for this music :(");
+                        return;
+                    }
+                }
                 ALyricBot.reply(message, e);
             }
-        }).start();
+        });
     }
 
     public static void reply(Message message, Throwable e) {

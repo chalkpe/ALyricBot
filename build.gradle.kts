@@ -32,6 +32,9 @@ repositories {
 dependencies {
     implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-afterburner", version = "2.12.3")
 
+    implementation(group = "com.github.kittinunf.fuel", name = "fuel", version = "2.3.1")
+    implementation(group = "com.github.kittinunf.fuel", name = "fuel-jackson", version = "2.3.1")
+
     implementation(group = "be.zvz.alsong", name = "alsong-kt", version = "1.0.1")
     implementation(group = "com.github.rubenlagus", name = "TelegramBots", version = "5.2.0")
     implementation(group = "net.sf.javamusictag", name = "jid3lib", version = "0.5.4")
@@ -50,15 +53,15 @@ tasks.withType<JavaCompile>() {
     options.encoding = "UTF-8"
 }
 
+val attributes = mapOf(
+    "Main-Class" to "pe.chalk.telegram.alyricbot.ALyricBot",
+    "Implementation-Title" to description,
+    "Implementation-Version" to version
+)
+
 tasks.withType<Jar> {
     manifest {
-        attributes(
-            mapOf(
-                "Main-Class" to "pe.chalk.telegram.alyricbot.ALyricBot",
-                "Implementation-Title" to description,
-                "Implementation-Version" to archiveVersion
-            )
-        )
+        attributes(attributes)
     }
 }
 
@@ -67,7 +70,7 @@ tasks {
         archiveBaseName.set("app")
         mergeServiceFiles()
         manifest {
-            attributes(mapOf("Main-Class" to "pe.chalk.telegram.alyricbot.ALyricBot"))
+            attributes(attributes)
         }
     }
 }
