@@ -2,6 +2,7 @@ import java.util.Properties
 
 plugins {
     java
+    id("com.github.johnrengelman.shadow") version "7.0.0"
 }
 
 val gprProps = Properties()
@@ -46,4 +47,16 @@ tasks.withType<JavaCompile> {
 
 tasks.withType<JavaCompile>() {
     options.encoding = "UTF-8"
+}
+
+tasks.withType<Jar> {
+    manifest {
+        attributes(
+            mapOf(
+                "Main-Class" to "pe.chalk.telegram.alyricbot.ALyricBot",
+                "Implementation-Title" to description,
+                "Implementation-Version" to version
+            )
+        )
+    }
 }
