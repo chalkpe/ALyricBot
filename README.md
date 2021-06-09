@@ -1,6 +1,9 @@
 # ALyricBot
 A simple Telegram bot that automatically provides ALSong lyrics of the uploaded music file.
 
+![image](https://user-images.githubusercontent.com/16558115/120801414-155d8880-c57c-11eb-9b6d-109f35762648.png)
+
+
 ## Commands
 | Command | Parameter | Description |
 | :-----: | :-------: | :---------: |
