@@ -96,3 +96,5 @@ $RECYCLE.BIN/
 
 /build/tmp/jar/MANIFEST.MF
 /build/tmp/compileJava/source-classes-mapping.txt
+
+build
