@@ -14,7 +14,7 @@ repositories {
 }
 
 dependencies {
-    implementation(group = "be.zvz.alsong", name = "alsong-kt", version = "1.0.6")
+    implementation(group = "be.zvz.alsong", name = "alsong-kt", version = "1.0.7")
     implementation(group = "com.github.rubenlagus", name = "TelegramBots", version = "5.6.0")
     implementation(group = "net.sf.javamusictag", name = "jid3lib", version = "0.5.4")
 }
