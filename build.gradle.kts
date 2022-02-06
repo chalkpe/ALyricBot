@@ -20,7 +20,7 @@ dependencies {
     implementation(group = "com.github.kittinunf.fuel", name = "fuel", version = "2.3.1")
     implementation(group = "com.github.kittinunf.fuel", name = "fuel-jackson", version = "2.3.1")
 
-    implementation(group = "com.github.JellyBrick", name = "alsong-kt", version = "1.0.7")
+    implementation(group = "com.github.JellyBrick", name = "alsong-kt", version = "1.1.0")
     implementation(group = "com.github.rubenlagus", name = "TelegramBots", version = "5.6.0")
     implementation(group = "net.sf.javamusictag", name = "jid3lib", version = "0.5.4")
 }
